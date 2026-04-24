@@ -1,0 +1,7 @@
+{
+  "wsPort": 9527,
+  "tokens": {
+    "mac-mini": "your-secret-token-here"
+  },
+  "telegramToken": "123456:your-telegram-bot-token"
+}

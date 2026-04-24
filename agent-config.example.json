@@ -1,0 +1,7 @@
+{
+  "gatewayUrl": "ws://localhost:9527",
+  "device": "mac-mini",
+  "token": "your-secret-token-here",
+  "agents": ["claude", "shell"],
+  "projects": ["/Users/asuna/Asuna/study&work/git/bot"]
+}
