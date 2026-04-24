@@ -16,6 +16,7 @@ export class DevicePool {
   private wss: WebSocketServer;
   private tokens: Record<string, string>;
   private listeners: Array<(device: string, msg: DevToGate) => void> = [];
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
 
   constructor(port: number, tokens: Record<string, string>) {
     this.tokens = tokens;
@@ -72,15 +73,22 @@ export class DevicePool {
     });
 
     // Heartbeat: ping every 30s, offline after 90s
-    setInterval(() => {
+    this.heartbeatTimer = setInterval(() => {
       const now = Date.now();
+      const expired: string[] = [];
       for (const [name, dev] of this.devices) {
         if (now - dev.lastHeartbeat > 90000) {
-          dev.online = false;
-          this.devices.delete(name);
-          console.log(`[device-pool] ${name} timed out`);
+          expired.push(name);
         } else if (dev.online) {
           dev.ws.send(JSON.stringify({ type: "ping" } satisfies GateToDev));
+        }
+      }
+      for (const name of expired) {
+        const dev = this.devices.get(name);
+        if (dev) {
+          dev.ws.close();
+          this.devices.delete(name);
+          console.log(`[device-pool] ${name} timed out`);
         }
       }
     }, 30000);
@@ -108,6 +116,7 @@ export class DevicePool {
   }
 
   close(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.wss.close();
   }
 }

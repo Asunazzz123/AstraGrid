@@ -15,6 +15,10 @@ const running = new Map<string, TaskHandle>();
 const conn = connect(config, (msg: GateToDev) => {
   switch (msg.type) {
     case "exec": {
+      if (!msg.id || !msg.agent || !msg.cwd || !msg.task) {
+        console.error("[agent] Malformed exec message, dropping:", msg);
+        return;
+      }
       conn.send({ type: "ack", id: msg.id });
       const handle = execute(msg, (m) => conn.send(m));
       running.set(msg.id, handle);

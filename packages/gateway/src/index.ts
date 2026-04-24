@@ -35,7 +35,7 @@ adapter.onMessage((msg) => {
       'Usage: @bot <device>:<agent> [project=<name>] <task>',
       'Example: @bot mac:claude project=bot fix the login bug',
       '',
-      `Devices online: ${pool.listDevices().map(d => `${d.device}[${d.agents.join(",")}]`).join(", ") || "none"}`,
+      `Devices online: ${pool.listDevices().filter(d => d.online).map(d => `${d.device}[${d.agents.join(",")}]`).join(", ") || "none"}`,
     ].join("\n"));
     return;
   }

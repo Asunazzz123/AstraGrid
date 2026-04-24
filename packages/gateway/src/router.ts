@@ -25,7 +25,7 @@ export function route(cmd: ParsedCommand, pool: DevicePool): RouteResult {
 
   const taskId = randomUUID();
   const cwd = cmd.project
-    ? dev.projects.find(p => p.includes(cmd.project!)) ?? dev.projects[0] ?? process.cwd()
+    ? dev.projects.find(p => p === cmd.project || p.endsWith("/" + cmd.project)) ?? dev.projects[0] ?? process.cwd()
     : dev.projects[0] ?? process.cwd();
 
   const exec: GateToDev = {
