@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { DevToGate, GateToDev } from "@bot/shared";
-import { AgentConfig } from "@bot/shared";
+import { DevToGate, GateToDev, isGateToDev } from "@bot/shared";
+import type { AgentConfig } from "@bot/shared";
 
 export type Connection = {
   send: (msg: DevToGate) => void;
@@ -10,6 +10,7 @@ export type Connection = {
 export function connect(config: AgentConfig, onMessage: (msg: GateToDev) => void): Connection {
   let ws: WebSocket;
   let retryDelay = 1000;
+  let stopped = false;
 
   function create() {
     ws = new WebSocket(config.gatewayUrl);
@@ -30,7 +31,9 @@ export function connect(config: AgentConfig, onMessage: (msg: GateToDev) => void
     ws.on("message", (raw) => {
       let msg: GateToDev;
       try {
-        msg = JSON.parse(raw.toString()) as GateToDev;
+        const parsed = JSON.parse(raw.toString());
+        if (!isGateToDev(parsed)) return;
+        msg = parsed;
       } catch {
         return;
       }
@@ -42,6 +45,7 @@ export function connect(config: AgentConfig, onMessage: (msg: GateToDev) => void
     });
 
     ws.on("close", () => {
+      if (stopped) return;
       console.log(`[ws-client] Disconnected, reconnecting in ${retryDelay}ms...`);
       setTimeout(create, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 60000);
@@ -61,6 +65,9 @@ export function connect(config: AgentConfig, onMessage: (msg: GateToDev) => void
         ws.send(JSON.stringify(msg));
       }
     },
-    close: () => ws.close(),
+    close: () => {
+      stopped = true;
+      ws.close();
+    },
   };
 }
