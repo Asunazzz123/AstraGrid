@@ -1,0 +1,16 @@
+{
+  "name": "bot",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "tsc -b",
+    "dev:gateway": "tsx packages/gateway/src/index.ts",
+    "dev:agent": "tsx packages/agent/src/index.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@bot/agent",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@bot/shared": "*",
+    "ws": "^8.16.0"
+  }
+}
