@@ -1,0 +1,7 @@
+{
+  "gatewayUrl": "ws://localhost:9527",
+  "device": "macbook",
+  "token": "sk-sduahsudhauf12431@#hudh",
+  "agents": ["claude", "shell"],
+  "projects": ["/Users/asuna/Asuna/study&work/git/bot"]
+}

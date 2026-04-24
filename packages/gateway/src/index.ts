@@ -20,7 +20,11 @@ try {
 
 const pool = new DevicePool(config.wsPort, config.tokens);
 const streamer = new Streamer();
-const adapter: BotAdapter = new TelegramAdapter(config.telegramToken);
+const adapter: BotAdapter = new TelegramAdapter(config.telegramToken, config.proxy);
+
+if (config.proxy) {
+  console.log(`[gateway] Using proxy: ${config.proxy}`);
+}
 
 // Wire device messages → streamer
 pool.onMessage((device, msg) => {

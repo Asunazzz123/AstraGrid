@@ -6,8 +6,16 @@ export class TelegramAdapter implements BotAdapter {
   private bot: Telegraf;
   private handlers: MessageHandler[] = [];
 
-  constructor(token: string) {
-    this.bot = new Telegraf(token);
+  constructor(token: string, proxy?: string) {
+    const opts: Record<string, unknown> = {};
+    if (proxy) {
+      // https-proxy-agent is ESM-only, use dynamic require
+      const { HttpsProxyAgent } = require("https-proxy-agent") as {
+        HttpsProxyAgent: new (url: string) => object;
+      };
+      opts.telegram = { agent: new HttpsProxyAgent(proxy) };
+    }
+    this.bot = new Telegraf(token, opts);
   }
 
   async start(): Promise<void> {

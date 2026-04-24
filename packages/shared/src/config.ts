@@ -4,6 +4,7 @@ export type GatewayConfig = {
   wsPort: number;
   tokens: Record<string, string>; // deviceName → token
   telegramToken: string;
+  proxy?: string; // e.g. "http://127.0.0.1:7890" for Telegram API
 };
 
 export type AgentConfig = {
