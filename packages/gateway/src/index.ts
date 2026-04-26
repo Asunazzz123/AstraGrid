@@ -1,11 +1,11 @@
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
 import { GatewayConfig } from "@bot/shared";
 import { DevicePool } from "./device-pool";
-import { parse } from "./parser";
-import { route } from "./router";
+import { Router } from "./router";
 import { Streamer } from "./streamer";
-import { BotAdapter } from "./adapters/base";
+import { SessionStore } from "./session-store";
+import { SessionManager } from "./session-manager";
 import { TelegramAdapter } from "./adapters/telegram";
 
 const configPath = resolve(process.env.GATEWAY_CONFIG || "gateway-config.json");
@@ -18,45 +18,41 @@ try {
   process.exit(1);
 }
 
-const pool = new DevicePool(config.wsPort, config.tokens);
-const streamer = new Streamer();
-const adapter: BotAdapter = new TelegramAdapter(config.telegramToken, config.proxy);
-
 if (config.proxy) {
   console.log(`[gateway] Using proxy: ${config.proxy}`);
 }
+
+const pool = new DevicePool(config.wsPort, config.tokens);
+const adapter = new TelegramAdapter(config.telegramToken, config.proxy);
+const streamer = new Streamer();
+
+// Session persistence file next to config
+const sessionsPath = resolve(dirname(configPath), "gateway-sessions.json");
+const store = new SessionStore(sessionsPath);
+const sessions = new SessionManager(store, pool, adapter);
+
+// Wire codex session ID capture: when an exit message carries a codex sessionId,
+// update the session record mapping
+streamer.onSessionId((taskId, codexSessionId) => {
+  sessions.updateCliSessionId(taskId, codexSessionId);
+});
+
+const router = new Router(pool, sessions, adapter, streamer);
 
 // Wire device messages → streamer
 pool.onMessage((device, msg) => {
   streamer.handle(device, msg);
 });
 
-// Wire incoming chat messages → parse → route
+// Wire incoming chat messages → router
 adapter.onMessage((msg) => {
-  const cmd = parse(msg.text);
-  if (!cmd) {
-    adapter.sendReply(msg.chatId, [
-      'Usage: @bot <device>:<agent> [project=<name>] <task>',
-      'Example: @bot mac:claude project=bot fix the login bug',
-      '',
-      `Devices online: ${pool.listDevices().filter(d => d.online).map(d => `${d.device}[${d.agents.join(",")}]`).join(", ") || "none"}`,
-    ].join("\n"));
-    return;
-  }
-
-  const result = route(cmd, pool);
-  if (!result.ok) {
-    adapter.sendReply(msg.chatId, `❌ ${result.error}`);
-    return;
-  }
-
-  streamer.register(result.taskId, msg.chatId, adapter);
-  adapter.sendReply(msg.chatId, `🚀 Task ${result.taskId.slice(0, 8)} dispatched to ${result.device}:${cmd.agent}`);
+  router.handle(msg).catch((err) => {
+    console.error("[gateway] Router error:", err);
+  });
 });
 
-adapter.start().then(() => {
-  console.log(`[gateway] Running — WS :${config.wsPort}, Telegram bot active`);
-});
+adapter.start();
+console.log(`[gateway] Running — WS :${config.wsPort}`);
 
 process.on("SIGINT", () => {
   adapter.stop();

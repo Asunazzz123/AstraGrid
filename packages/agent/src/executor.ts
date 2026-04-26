@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
-import { writeFileSync } from "fs";
-import { tmpdir } from "os";
+import { writeFileSync, readFileSync, existsSync } from "fs";
+import { tmpdir, homedir } from "os";
 import { join } from "path";
 import { GateToDev, DevToGate, AgentType } from "@bot/shared";
 import { readFile } from "./file-handler";
@@ -8,20 +8,60 @@ import { readFile } from "./file-handler";
 type ExecMsg = Extract<GateToDev, { type: "exec" }>;
 export type SendFn = (msg: DevToGate) => void;
 
-const AGENT_CMD: Record<AgentType, (cwd: string, task: string) => { cmd: string; args: string[] }> = {
-  claude: (cwd, task) => ({ cmd: "claude", args: ["-p", task, "--cwd", cwd] }),
-  codex: (cwd, task) => ({ cmd: "codex", args: ["exec", task, "--cwd", cwd] }),
-  shell: (_cwd, task) => ({ cmd: process.env.SHELL || "/bin/sh", args: ["-c", task] }),
-};
-
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 min
 const STDOUT_SIZE_LIMIT = 102400; // 100KB — switch to file delivery above this
+
+function getAgentCmd(
+  agent: AgentType,
+  cwd: string,
+  task: string,
+  sessionId?: string,
+  isSessionInit?: boolean
+): { cmd: string; args: string[] } {
+  switch (agent) {
+    case "claude":
+      if (sessionId && isSessionInit) {
+        const shortId = sessionId.slice(0, 8);
+        return { cmd: "claude", args: ["-p", "--session-id", sessionId, "--name", `tg-${shortId}`, task, "--cwd", cwd] };
+      }
+      if (sessionId && !isSessionInit) {
+        return { cmd: "claude", args: ["-c", "-p", task, "--cwd", cwd] };
+      }
+      return { cmd: "claude", args: ["-p", task, "--cwd", cwd] };
+
+    case "codex":
+      if (sessionId && isSessionInit) {
+        return { cmd: "codex", args: ["exec", task, "--cwd", cwd] };
+      }
+      if (sessionId && !isSessionInit) {
+        return { cmd: "codex", args: ["exec", "resume", sessionId, task, "--cwd", cwd] };
+      }
+      return { cmd: "codex", args: ["exec", task, "--cwd", cwd] };
+
+    case "shell":
+      return { cmd: process.env.SHELL || "/bin/sh", args: ["-c", task] };
+  }
+}
+
+function getLatestCodexSessionId(): string | undefined {
+  try {
+    const indexPath = join(homedir(), ".codex", "session_index.jsonl");
+    if (!existsSync(indexPath)) return undefined;
+    const lines = readFileSync(indexPath, "utf-8").trim().split("\n");
+    const last = lines[lines.length - 1];
+    if (!last) return undefined;
+    const entry = JSON.parse(last);
+    return entry.id as string | undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type TaskHandle = { cancel: () => void };
 
 export function execute(msg: ExecMsg, send: SendFn): TaskHandle {
-  const { id, agent, cwd, task, timeout: timeoutMs = DEFAULT_TIMEOUT_MS } = msg;
-  const { cmd, args } = AGENT_CMD[agent](cwd, task);
+  const { id, agent, cwd, task, sessionId, isSessionInit, timeout: timeoutMs = DEFAULT_TIMEOUT_MS } = msg;
+  const { cmd, args } = getAgentCmd(agent, cwd, task, sessionId, isSessionInit);
 
   console.log(`[executor] ${id} — spawning: ${cmd} ${args.join(" ")}`);
 
@@ -85,7 +125,12 @@ export function execute(msg: ExecMsg, send: SendFn): TaskHandle {
         writeFileSync(filePath, stderrTotal);
         send({ type: "file", id, file: readFile(filePath) });
       }
-      send({ type: "exit", id, code: code ?? 1, signal: signal ?? undefined });
+      // For codex first exec, extract the session ID from codex index
+      let exitSessionId: string | undefined;
+      if (agent === "codex" && isSessionInit && code === 0) {
+        exitSessionId = getLatestCodexSessionId();
+      }
+      send({ type: "exit", id, code: code ?? 1, signal: signal ?? undefined, sessionId: exitSessionId });
     }
     console.log(`[executor] ${id} — exit ${code}`);
   });

@@ -1,3 +1,6 @@
+import { existsSync, readdirSync, unlinkSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 import { connect } from "./ws-client";
 import { execute, TaskHandle } from "./executor";
 import { AgentConfig } from "@bot/shared";
@@ -30,6 +33,36 @@ const conn = connect(config, (msg: GateToDev) => {
         handle.cancel();
         running.delete(msg.id);
       }
+      break;
+    }
+    case "session_kill": {
+      console.log(`[agent] Session ${msg.sessionId} kill requested — cleaning up`);
+      try {
+        const claudeDir = join(homedir(), ".claude", "projects");
+        if (existsSync(claudeDir)) {
+          const dirs = readdirSync(claudeDir);
+          for (const dir of dirs) {
+            const sessionFile = join(claudeDir, dir, `${msg.sessionId}.jsonl`);
+            if (existsSync(sessionFile)) {
+              unlinkSync(sessionFile);
+              console.log(`[agent] Deleted claude session file: ${sessionFile}`);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+      try {
+        const codexSessionsDir = join(homedir(), ".codex", "sessions");
+        if (existsSync(codexSessionsDir)) {
+          const years = readdirSync(codexSessionsDir);
+          for (const year of years) {
+            const sessionFile = join(codexSessionsDir, year, `${msg.sessionId}.jsonl`);
+            if (existsSync(sessionFile)) {
+              unlinkSync(sessionFile);
+              console.log(`[agent] Deleted codex session file: ${sessionFile}`);
+            }
+          }
+        }
+      } catch { /* ignore */ }
       break;
     }
   }

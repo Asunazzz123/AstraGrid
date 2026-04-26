@@ -11,9 +11,14 @@ type TaskState = {
 
 export class Streamer {
   private tasks = new Map<string, TaskState>();
+  private sessionIdHandler?: (taskId: string, sessionId: string) => void;
 
   register(taskId: string, chatId: string, adapter: BotAdapter): void {
     this.tasks.set(taskId, { chatId, adapter, buffer: "" });
+  }
+
+  onSessionId(handler: (taskId: string, sessionId: string) => void): void {
+    this.sessionIdHandler = handler;
   }
 
   handle(deviceName: string, msg: DevToGate): void {
@@ -21,6 +26,11 @@ export class Streamer {
 
     const state = this.tasks.get(msg.id);
     if (!state) return;
+
+    if (msg.type === "session_error") {
+      state.adapter.sendReply(state.chatId, `❌ Session error: ${msg.error}`);
+      return;
+    }
 
     if (msg.type === "stdout") {
       state.buffer += msg.chunk;
@@ -35,6 +45,9 @@ export class Streamer {
     }
 
     if (msg.type === "exit") {
+      if (msg.sessionId) {
+        this.sessionIdHandler?.(msg.id, msg.sessionId);
+      }
       if (state.buffer.length > 0) {
         state.adapter.sendReply(state.chatId, state.buffer);
         state.buffer = "";

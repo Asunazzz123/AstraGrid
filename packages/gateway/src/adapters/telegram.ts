@@ -18,6 +18,22 @@ export class TelegramAdapter implements BotAdapter {
     this.bot = new Telegraf(token, opts);
   }
 
+  get telegram() {
+    return this.bot.telegram;
+  }
+
+  async createForumTopic(chatId: string, name: string): Promise<number> {
+    const result = await this.bot.telegram.createForumTopic(
+      Number(chatId),
+      name
+    );
+    return result.message_thread_id;
+  }
+
+  async deleteForumTopic(chatId: string, topicId: number): Promise<void> {
+    await this.bot.telegram.deleteForumTopic(Number(chatId), topicId);
+  }
+
   async start(): Promise<void> {
     this.bot.on("text", (ctx) => {
       const msg: IncomingMessage = {
@@ -25,6 +41,8 @@ export class TelegramAdapter implements BotAdapter {
         userId: String(ctx.from?.id ?? "unknown"),
         text: ctx.message.text,
         platform: "telegram",
+        topicId: ctx.message.message_thread_id,
+        isTopicMessage: ctx.message.is_topic_message ?? false,
       };
       for (const h of this.handlers) h(msg);
     });
