@@ -4,3 +4,7 @@ dist/
 *.log
 .superpowers/
 .worktrees/
+
+# macOS
+.DS_Store
+**/.DS_Store
