@@ -5,6 +5,8 @@ export type IncomingMessage = {
   userId: string;
   text: string;
   platform: "telegram" | "wechat" | "qq";
+  topicId?: number;
+  isTopicMessage?: boolean;
 };
 
 export type MessageHandler = (msg: IncomingMessage) => void;
