@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ParsedCommand } from "./parser";
+import { ParsedResult } from "./parser";
 import { DevicePool } from "./device-pool";
 import { GateToDev } from "@bot/shared";
 
@@ -7,7 +7,7 @@ export type RouteResult =
   | { ok: true; taskId: string; device: string }
   | { ok: false; error: string };
 
-export function route(cmd: ParsedCommand, pool: DevicePool): RouteResult {
+export function route(cmd: Extract<ParsedResult, { type: "exec" | "init" }>, pool: DevicePool): RouteResult {
   const dev = pool.getDevice(cmd.device);
 
   if (!dev) {
@@ -28,12 +28,13 @@ export function route(cmd: ParsedCommand, pool: DevicePool): RouteResult {
     ? dev.projects.find(p => p === cmd.project || p.endsWith("/" + cmd.project)) ?? dev.projects[0] ?? process.cwd()
     : dev.projects[0] ?? process.cwd();
 
+  const taskStr = cmd.task ?? "";
   const exec: GateToDev = {
     type: "exec",
     id: taskId,
     agent: cmd.agent,
     cwd,
-    task: cmd.task,
+    task: taskStr,
   };
 
   pool.send(cmd.device, exec);

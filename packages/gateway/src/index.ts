@@ -44,14 +44,28 @@ adapter.onMessage((msg) => {
     return;
   }
 
-  const result = route(cmd, pool);
-  if (!result.ok) {
-    adapter.sendReply(msg.chatId, `❌ ${result.error}`);
-    return;
+  switch (cmd.type) {
+    case "kill":
+      adapter.sendReply(msg.chatId, "Kill command received (not yet implemented)");
+      return;
+    case "status":
+      adapter.sendReply(msg.chatId, "Status command received (not yet implemented)");
+      return;
+    case "sessions":
+      adapter.sendReply(msg.chatId, "Sessions command received (not yet implemented)");
+      return;
+    case "init":
+    case "exec": {
+      const result = route(cmd, pool);
+      if (!result.ok) {
+        adapter.sendReply(msg.chatId, `❌ ${result.error}`);
+        return;
+      }
+      streamer.register(result.taskId, msg.chatId, adapter);
+      adapter.sendReply(msg.chatId, `🚀 Task ${result.taskId.slice(0, 8)} dispatched to ${result.device}:${cmd.agent}`);
+      return;
+    }
   }
-
-  streamer.register(result.taskId, msg.chatId, adapter);
-  adapter.sendReply(msg.chatId, `🚀 Task ${result.taskId.slice(0, 8)} dispatched to ${result.device}:${cmd.agent}`);
 });
 
 adapter.start().then(() => {
