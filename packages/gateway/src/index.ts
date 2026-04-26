@@ -1,12 +1,11 @@
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
 import { GatewayConfig } from "@bot/shared";
 import { DevicePool } from "./device-pool";
 import { Router } from "./router";
 import { Streamer } from "./streamer";
 import { SessionStore } from "./session-store";
 import { SessionManager } from "./session-manager";
-import { BotAdapter } from "./adapters/base";
 import { TelegramAdapter } from "./adapters/telegram";
 
 const configPath = resolve(process.env.GATEWAY_CONFIG || "gateway-config.json");
@@ -19,35 +18,41 @@ try {
   process.exit(1);
 }
 
-const pool = new DevicePool(config.wsPort, config.tokens);
-const streamer = new Streamer();
-const adapter: BotAdapter = new TelegramAdapter(config.telegramToken, config.proxy);
-const store = new SessionStore(resolve("session-store.json"));
-const sessions = new SessionManager(store, pool, adapter as TelegramAdapter);
-const router = new Router(pool, sessions, adapter as TelegramAdapter, streamer);
-
 if (config.proxy) {
   console.log(`[gateway] Using proxy: ${config.proxy}`);
 }
+
+const pool = new DevicePool(config.wsPort, config.tokens);
+const adapter = new TelegramAdapter(config.telegramToken, config.proxy);
+const streamer = new Streamer();
+
+// Session persistence file next to config
+const sessionsPath = resolve(dirname(configPath), "gateway-sessions.json");
+const store = new SessionStore(sessionsPath);
+const sessions = new SessionManager(store, pool, adapter);
+
+// Wire codex session ID capture: when an exit message carries a codex sessionId,
+// update the session record mapping
+streamer.onSessionId((taskId, codexSessionId) => {
+  sessions.updateCliSessionId(taskId, codexSessionId);
+});
+
+const router = new Router(pool, sessions, adapter, streamer);
 
 // Wire device messages → streamer
 pool.onMessage((device, msg) => {
   streamer.handle(device, msg);
 });
 
-// Wire streamer sessionId → session manager
-streamer.onSessionId((taskId, sessionId) => {
-  sessions.updateCliSessionId(taskId, sessionId);
-});
-
 // Wire incoming chat messages → router
 adapter.onMessage((msg) => {
-  router.handle(msg);
+  router.handle(msg).catch((err) => {
+    console.error("[gateway] Router error:", err);
+  });
 });
 
-adapter.start().then(() => {
-  console.log(`[gateway] Running — WS :${config.wsPort}, Telegram bot active`);
-});
+adapter.start();
+console.log(`[gateway] Running — WS :${config.wsPort}`);
 
 process.on("SIGINT", () => {
   adapter.stop();
