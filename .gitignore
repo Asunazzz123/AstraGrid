@@ -9,3 +9,5 @@ dist/
 .DS_Store
 **/.DS_Store
 docs/*
+gateway-config.json
+agent-config.json
