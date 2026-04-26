@@ -2,9 +2,10 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { GatewayConfig } from "@bot/shared";
 import { DevicePool } from "./device-pool";
-import { parse } from "./parser";
-import { route } from "./router";
+import { Router } from "./router";
 import { Streamer } from "./streamer";
+import { SessionStore } from "./session-store";
+import { SessionManager } from "./session-manager";
 import { BotAdapter } from "./adapters/base";
 import { TelegramAdapter } from "./adapters/telegram";
 
@@ -21,6 +22,9 @@ try {
 const pool = new DevicePool(config.wsPort, config.tokens);
 const streamer = new Streamer();
 const adapter: BotAdapter = new TelegramAdapter(config.telegramToken, config.proxy);
+const store = new SessionStore(resolve("session-store.json"));
+const sessions = new SessionManager(store, pool, adapter as TelegramAdapter);
+const router = new Router(pool, sessions, adapter as TelegramAdapter, streamer);
 
 if (config.proxy) {
   console.log(`[gateway] Using proxy: ${config.proxy}`);
@@ -31,41 +35,14 @@ pool.onMessage((device, msg) => {
   streamer.handle(device, msg);
 });
 
-// Wire incoming chat messages → parse → route
-adapter.onMessage((msg) => {
-  const cmd = parse(msg.text);
-  if (!cmd) {
-    adapter.sendReply(msg.chatId, [
-      'Usage: @bot <device>:<agent> [project=<name>] <task>',
-      'Example: @bot mac:claude project=bot fix the login bug',
-      '',
-      `Devices online: ${pool.listDevices().filter(d => d.online).map(d => `${d.device}[${d.agents.join(",")}]`).join(", ") || "none"}`,
-    ].join("\n"));
-    return;
-  }
+// Wire streamer sessionId → session manager
+streamer.onSessionId((taskId, sessionId) => {
+  sessions.updateCliSessionId(taskId, sessionId);
+});
 
-  switch (cmd.type) {
-    case "kill":
-      adapter.sendReply(msg.chatId, "Kill command received (not yet implemented)");
-      return;
-    case "status":
-      adapter.sendReply(msg.chatId, "Status command received (not yet implemented)");
-      return;
-    case "sessions":
-      adapter.sendReply(msg.chatId, "Sessions command received (not yet implemented)");
-      return;
-    case "init":
-    case "exec": {
-      const result = route(cmd, pool);
-      if (!result.ok) {
-        adapter.sendReply(msg.chatId, `❌ ${result.error}`);
-        return;
-      }
-      streamer.register(result.taskId, msg.chatId, adapter);
-      adapter.sendReply(msg.chatId, `🚀 Task ${result.taskId.slice(0, 8)} dispatched to ${result.device}:${cmd.agent}`);
-      return;
-    }
-  }
+// Wire incoming chat messages → router
+adapter.onMessage((msg) => {
+  router.handle(msg);
 });
 
 adapter.start().then(() => {
