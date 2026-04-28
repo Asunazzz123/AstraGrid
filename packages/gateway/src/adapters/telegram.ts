@@ -60,9 +60,11 @@ export class TelegramAdapter implements BotAdapter {
     this.handlers.push(handler);
   }
 
-  async sendReply(chatId: string, text: string, _files?: FilePayload[]): Promise<void> {
+  async sendReply(chatId: string, text: string, _files?: FilePayload[], topicId?: number): Promise<void> {
     try {
-      await this.bot.telegram.sendMessage(chatId, text.slice(0, 4096));
+      const extra: Record<string, unknown> = {};
+      if (topicId != null) extra.message_thread_id = topicId;
+      await this.bot.telegram.sendMessage(chatId, text.slice(0, 4096), extra);
     } catch (err) {
       console.error("[telegram] sendReply error:", err);
     }

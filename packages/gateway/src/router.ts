@@ -60,7 +60,7 @@ export class Router {
   private async handleTopicMessage(msg: IncomingMessage): Promise<void> {
     const session = this.sessions.getByTopic(msg.chatId, msg.topicId!);
     if (!session) {
-      await this.adapter.sendReply(msg.chatId, "No active session here. Use @bot device:agent @init in the main chat.");
+      await this.adapter.sendReply(msg.chatId, "No active session here. Use @bot device:agent @init in the main chat.", undefined, msg.topicId);
       return;
     }
 
@@ -74,7 +74,7 @@ export class Router {
     // Special commands inside topic
     if (/^\/kill$/i.test(trimmed)) {
       await this.sessions.kill(session.sessionId);
-      await this.adapter.sendReply(msg.chatId, `🛑 Session \`${session.sessionId.slice(0, 8)}\` killed.`);
+      await this.adapter.sendReply(msg.chatId, `🛑 Session \`${session.sessionId.slice(0, 8)}\` killed.`, undefined, session.topicId);
       return;
     }
 
@@ -89,7 +89,9 @@ export class Router {
           `   CWD: ${session.cwd}`,
           `   State: ${session.state}`,
           `   Created: ${new Date(session.createdAt).toISOString()}`,
-        ].join("\n")
+        ].join("\n"),
+        undefined,
+        session.topicId
       );
       return;
     }
@@ -103,7 +105,7 @@ export class Router {
       trimmed
     );
 
-    this.streamer.register(taskId, session.chatId, this.adapter as unknown as BotAdapter);
+    this.streamer.register(taskId, session.chatId, this.adapter as unknown as BotAdapter, session.topicId);
   }
 
   private async handleInit(
@@ -144,14 +146,14 @@ export class Router {
         cwd,
         parsed.task
       );
-      this.streamer.register(taskId, chatId, this.adapter as unknown as BotAdapter);
+      this.streamer.register(taskId, chatId, this.adapter as unknown as BotAdapter, record.topicId);
     }
 
     const label = parsed.task
       ? `✅ Session \`${record.sessionId.slice(0, 8)}\` created. Topic: ${parsed.agent}@${parsed.device}${parsed.project ? ` · ${parsed.project}` : ""}`
       : `✅ Session \`${record.sessionId.slice(0, 8)}\` created. Send your first message in the topic.`;
 
-    await this.adapter.sendReply(chatId, label);
+    await this.adapter.sendReply(chatId, label, undefined, record.topicId);
   }
 
   private handleExec(

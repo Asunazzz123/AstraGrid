@@ -15,5 +15,5 @@ export interface BotAdapter {
   start(): Promise<void>;
   stop(): Promise<void>;
   onMessage(handler: MessageHandler): void;
-  sendReply(chatId: string, text: string, files?: FilePayload[]): Promise<void>;
+  sendReply(chatId: string, text: string, files?: FilePayload[], topicId?: number): Promise<void>;
 }
