@@ -13,7 +13,6 @@ const STDOUT_SIZE_LIMIT = 102400; // 100KB — switch to file delivery above thi
 
 function getAgentCmd(
   agent: AgentType,
-  cwd: string,
   task: string,
   sessionId?: string,
   isSessionInit?: boolean
@@ -22,21 +21,21 @@ function getAgentCmd(
     case "claude":
       if (sessionId && isSessionInit) {
         const shortId = sessionId.slice(0, 8);
-        return { cmd: "claude", args: ["-p", "--session-id", sessionId, "--name", `tg-${shortId}`, task, "--cwd", cwd] };
+        return { cmd: "claude", args: ["-p", "--session-id", sessionId, "--name", `tg-${shortId}`, task] };
       }
       if (sessionId && !isSessionInit) {
-        return { cmd: "claude", args: ["-c", "-p", task, "--cwd", cwd] };
+        return { cmd: "claude", args: ["-c", "-p", task] };
       }
-      return { cmd: "claude", args: ["-p", task, "--cwd", cwd] };
+      return { cmd: "claude", args: ["-p", task] };
 
     case "codex":
       if (sessionId && isSessionInit) {
-        return { cmd: "codex", args: ["exec", task, "--cwd", cwd] };
+        return { cmd: "codex", args: ["exec", task] };
       }
       if (sessionId && !isSessionInit) {
-        return { cmd: "codex", args: ["exec", "resume", sessionId, task, "--cwd", cwd] };
+        return { cmd: "codex", args: ["exec", "resume", sessionId, task] };
       }
-      return { cmd: "codex", args: ["exec", task, "--cwd", cwd] };
+      return { cmd: "codex", args: ["exec", task] };
 
     case "shell":
       return { cmd: process.env.SHELL || "/bin/sh", args: ["-c", task] };
@@ -61,7 +60,7 @@ export type TaskHandle = { cancel: () => void };
 
 export function execute(msg: ExecMsg, send: SendFn): TaskHandle {
   const { id, agent, cwd, task, sessionId, isSessionInit, timeout: timeoutMs = DEFAULT_TIMEOUT_MS } = msg;
-  const { cmd, args } = getAgentCmd(agent, cwd, task, sessionId, isSessionInit);
+  const { cmd, args } = getAgentCmd(agent, task, sessionId, isSessionInit);
 
   console.log(`[executor] ${id} — spawning: ${cmd} ${args.join(" ")}`);
 
